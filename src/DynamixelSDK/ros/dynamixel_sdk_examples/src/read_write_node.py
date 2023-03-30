@@ -68,8 +68,8 @@ PROTOCOL_VERSION            = 2.0               # See which protocol version is 
 # Default setting
 DXL_ID                      = 1                 # Dynamixel ID : 1
 BAUDRATE                    = 57600             # Dynamixel default baudrate : 57600
-DEVICENAME                  = '/dev/ttyUSB0'    # Check which port is being used on your controller
-                                                # ex) Windows: "COM1"   Linux: "/dev/ttyUSB0" Mac: "/dev/tty.usbserial-*"
+DEVICENAME                  = '/dev/ttyACM0'    # Check which port is being used on your controller
+                                                # ex) Windows: "COM1"   Linux: "/dev/ttyUSB0" or "/dev/ttyACM0" Mac: "/dev/tty.usbserial-*"
 
 TORQUE_ENABLE               = 1                 # Value for enabling the torque
 TORQUE_DISABLE              = 0                 # Value for disabling the torque

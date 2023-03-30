@@ -43,6 +43,13 @@
 #include "dynamixel_sdk_examples/Position.h"
 #include "dynamixel_sdk/dynamixel_sdk.h"
 
+#if defined(__linux__) || defined(__APPLE__)
+  #include <fcntl.h>          // FILE control
+  #include <termios.h>        // Terminal IO
+#elif defined(_WIN32)
+  #include <conio.h>
+#endif
+
 using namespace dynamixel;
 
 // Control table address
@@ -62,6 +69,22 @@ using namespace dynamixel;
 #define DXL3_ID               3               // DXL3 ID
 #define DXL4_ID               4               // DXL4 ID
 
+#define ESC_ASCII_VALUE             0x1b
+
+// Keyboard QWERTY
+/*#define FORWARD                     0x77	// w
+#define BACKWARD                    0x78	// x
+#define LEFT                        0x61	// a
+#define RIGHT                       0x64	// d
+#define STOPS                       0x73	// s*/
+
+// Keyboard AZERTY
+#define FORWARD                     0x7A	// z
+#define BACKWARD                    0x78	// x
+#define LEFT                        0x71	// q
+#define RIGHT                       0x64	// d
+#define STOPS                       0x73	// s
+
 #define BAUDRATE              1000000         // Default Baudrate of DYNAMIXEL X series
 #define DEVICE_NAME           "/dev/ttyACM0"  // [Linux] To find assigned port, use "$ ls /dev/ttyUSB*" or "$ ls /dev/ttyACM*" command
 //#define DEVICE_NAME           "/dev/ttyUSB0"  // [Linux] To find assigned port, use "$ ls /dev/ttyUSB*" or "$ ls /dev/ttyACM*" command
@@ -69,9 +92,62 @@ using namespace dynamixel;
 PortHandler * portHandler;
 PacketHandler * packetHandler;
 
-
-
 ros::Publisher get_position_pub;
+
+// Receive characters by keyboard
+
+int getch(void)
+{
+  #if defined(__linux__) || defined(__APPLE__)
+
+    struct termios oldt, newt;
+    int ch;
+
+    tcgetattr( STDIN_FILENO, &oldt );
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    newt.c_cc[VMIN] = 0;
+    newt.c_cc[VTIME] = 1;
+    tcsetattr( STDIN_FILENO, TCSANOW, &newt );
+    ch = getchar();
+    tcsetattr( STDIN_FILENO, TCSANOW, &oldt );
+
+    return ch;
+
+  #elif defined(_WIN32) || defined(_WIN64)
+    return _getch();
+  #endif
+}
+
+int kbhit(void)
+{
+  #if defined(__linux__) || defined(__APPLE__)
+    struct termios oldt, newt;
+    int ch;
+    int oldf;
+
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+    ch = getchar();
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+    if (ch != EOF)
+    {
+      ungetc(ch, stdin);
+      return 1;
+    }
+    return 0;
+  #elif defined(_WIN32)
+    return _kbhit();
+  #endif
+}
 
 // Get current velocity with service
 
@@ -105,9 +181,9 @@ void setVelocityCallback(const dynamixel_sdk_examples::SetVelocity::ConstPtr & m
 {
   uint8_t dxl_error = 0;
   int dxl_comm_result = COMM_TX_FAIL;
-
+    
   // Position Value of X series is 4 byte data. For AX & MX(1.0) use 2 byte data(uint16_t) for the Position Value.
-  uint32_t velocity = (unsigned int)msg->velocity; // Convert int32 -> uint32
+  uint32_t velocity = (unsigned int)msg->velocity; // Convert int32 -> uint32   
  
   // Write Goal Velocity (length : 4 bytes)
   // When writing 2 byte data to AX / MX(1.0), use write2ByteTxRx() instead.
@@ -128,7 +204,7 @@ void setPositionCallback(const dynamixel_sdk_examples::SetPosition::ConstPtr & m
   int dxl_comm_result = COMM_TX_FAIL;
 
   // Position Value of X series is 4 byte data. For AX & MX(1.0) use 2 byte data(uint16_t) for the Position Value.
-  uint32_t position = (unsigned int)msg->position; // Convert int32 -> uint32
+  uint32_t position = (unsigned int)msg->position; // Convert int32 -> uint32   
  
   // Write Goal Position (length : 4 bytes)
   // When writing 2 byte data to AX / MX(1.0), use write2ByteTxRx() instead.
@@ -160,7 +236,7 @@ void timer_callback(const ros::TimerEvent&)
   // Read Present Position (length : 4 bytes) and Convert uint32 -> int32
   // When reading 2 byte data from AX / MX(1.0), use read2ByteTxRx() instead.
   dxl_comm_result = packetHandler->read4ByteTxRx(
-    portHandler, 1, ADDR_PRESENT_POSITION, (uint32_t *)&position1, &dxl_error);   // portHandler, DXL1_ID, ADDR_PRESENT_POSITION, (uint32_t *)&position1, &dxl_error);   
+    portHandler, 1, ADDR_PRESENT_POSITION, (uint32_t *)&position1, &dxl_error);
   if (dxl_comm_result == COMM_SUCCESS) { 
     pos_motors.id[0] = 1;   
     pos_motors.position[0] = position1;
@@ -169,7 +245,7 @@ void timer_callback(const ros::TimerEvent&)
   }
   
   dxl_comm_result = packetHandler->read4ByteTxRx(
-    portHandler, 2, ADDR_PRESENT_POSITION, (uint32_t *)&position2, &dxl_error);   // portHandler, DXL2_ID, ADDR_PRESENT_POSITION, (uint32_t *)&position2, &dxl_error);  
+    portHandler, 2, ADDR_PRESENT_POSITION, (uint32_t *)&position2, &dxl_error);
   if (dxl_comm_result == COMM_SUCCESS) { 
     pos_motors.id[1] = 2;   
     pos_motors.position[1] = position2;
@@ -178,7 +254,7 @@ void timer_callback(const ros::TimerEvent&)
   }
   
   dxl_comm_result = packetHandler->read4ByteTxRx(
-    portHandler, 3, ADDR_PRESENT_POSITION, (uint32_t *)&position3, &dxl_error);   // portHandler, DXL3_ID, ADDR_PRESENT_POSITION, (uint32_t *)&position3, &dxl_error);  
+    portHandler, 3, ADDR_PRESENT_POSITION, (uint32_t *)&position3, &dxl_error);
   if (dxl_comm_result == COMM_SUCCESS) { 
     pos_motors.id[2] = 3;   
     pos_motors.position[2] = position3;
@@ -187,7 +263,7 @@ void timer_callback(const ros::TimerEvent&)
   }
   
   dxl_comm_result = packetHandler->read4ByteTxRx(
-    portHandler, 4, ADDR_PRESENT_POSITION, (uint32_t *)&position4, &dxl_error);   // portHandler, DXL4_ID, ADDR_PRESENT_POSITION, (uint32_t *)&position4, &dxl_error);  
+    portHandler, 4, ADDR_PRESENT_POSITION, (uint32_t *)&position4, &dxl_error);
   if (dxl_comm_result == COMM_SUCCESS) { 
     pos_motors.id[3] = 4;   
     pos_motors.position[3] = position4;
@@ -200,6 +276,18 @@ void timer_callback(const ros::TimerEvent&)
 
 int main(int argc, char ** argv)
 {
+
+  // Receive characters by keyboard
+  
+  int32_t lin_vel_step = 0;
+  int32_t ang_vel_step = 0;
+  
+  if (argc > 1)
+  {
+    lin_vel_step = atof(argv[1]);
+    ang_vel_step = atof(argv[2]);
+  }
+  
   // Initialization for use of the motors
   
   uint8_t dxl_error = 0;
@@ -248,32 +336,25 @@ int main(int argc, char ** argv)
     return -1;
   }
   
-  // Start with velocity 15, motor ID 1
-  
-  //dxl_comm_result = packetHandler->write4ByteTxRx(
-  //  portHandler, 1, ADDR_GOAL_VELOCITY, (uint32_t)15, &dxl_error);
-
-  
   // Operating Mode 
   // 1: Velocity 
   // 3: Position   
   
-  // Try to change the operating mode by write1ByteTxRx  
+  // Try to change the operating mode by write1ByteTxRx
   
   dxl_comm_result = packetHandler->write1ByteTxRx(
-    portHandler, DXL1_ID, ADDR_OPERATING_MODE, 3, &dxl_error);
+    portHandler, DXL1_ID, ADDR_OPERATING_MODE, 1, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
     ROS_ERROR("Failed to operating mode for Dynamixel ID %d", DXL1_ID);
-    return -1;
   }
   else{
     int8_t op_mode_result = 0;
     packetHandler->read1ByteTxRx(portHandler, DXL1_ID, ADDR_OPERATING_MODE, (uint8_t *)&op_mode_result, &dxl_error);
     ROS_INFO("Operating mode for Dynamixel ID %d: %d", DXL1_ID, op_mode_result);
   }
-  
-  // Try to change the operating mode by write2ByteTxRx
 
+  // Try to change the operating mode by write2ByteTxRx
+  
   dxl_comm_result = packetHandler->write2ByteTxRx(
     portHandler, DXL2_ID, ADDR_OPERATING_MODE, 1, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {    
@@ -300,7 +381,7 @@ int main(int argc, char ** argv)
   }   
 
   // Try to change the operating mode by writeTxRx(port, id, address, 1, data_write, error);
-
+  
   int8_t op_mode_config1 = 1;
   dxl_comm_result = packetHandler->writeTxRx(portHandler, DXL4_ID, ADDR_OPERATING_MODE, 1, (uint8_t *)&op_mode_config1, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
@@ -315,7 +396,7 @@ int main(int argc, char ** argv)
   
   // Initialize node, service, subscribers and publishers
   
-  ros::init(argc, argv, "read_write_node");
+  ros::init(argc, argv, "read_write_node_keyboard");
   ros::NodeHandle nh;
   
   ros::ServiceServer get_velocity_srv = nh.advertiseService("/get_velocity", getPresentVelocityCallback);
@@ -324,15 +405,87 @@ int main(int argc, char ** argv)
   
   ros::Timer timer = nh.createTimer(ros::Duration(0.1), timer_callback);
   get_position_pub = nh.advertise<dynamixel_sdk_examples::Position>("/position_encoder", 10);
+    
+  // // Receive characters by keyboard
   
+  std::string msg =
+  "\n\
+  Control Your Mobile Robot! \n\
+  --------------------------- \n\
+  Moving around:\n\
+          z\n\
+     q    s    d\n\
+          x\n\
+  \n\
+  z/x : increase/decrease linear velocity\n\
+  q/d : increase/decrease angular velocity\n\
+  \n\
+  s : force stop\n\
+  \n\
+  CTRL-C to quit\n\
+  ";
+
+  ROS_INFO("%s", msg.c_str());
   
-  while (ros::ok())
+  ros::Rate loop_rate(100);
+
+  while(ros::ok())
   {
-    usleep(8*1000);
-    ros::spin();
+    if (kbhit())
+    {
+      char c = getch();
+
+      if (c == FORWARD)
+      {
+        if (lin_vel_step >= 330)
+          lin_vel_step = 330;
+        else
+          lin_vel_step = lin_vel_step + 2;
+      }
+      else if (c == BACKWARD)
+      {
+        if (lin_vel_step <= -330)
+          lin_vel_step = -330;
+        else
+          lin_vel_step = lin_vel_step - 2;        
+      }
+      else if (c == LEFT)
+      {
+        if (ang_vel_step >= 230)
+          ang_vel_step = 230;
+        else
+          ang_vel_step = ang_vel_step + 2;        
+      }
+      else if (c == RIGHT)
+      {
+        if (ang_vel_step <= -230)
+          ang_vel_step = -230;
+        else
+          ang_vel_step = ang_vel_step - 2;      
+      }
+      else if (c == STOPS)
+      {
+        lin_vel_step = 0;
+        ang_vel_step = 0;
+      }      
+    }
+    
+    dxl_comm_result = packetHandler->write4ByteTxRx(
+	portHandler, DXL1_ID, ADDR_GOAL_VELOCITY, (uint32_t)lin_vel_step, &dxl_error);  // portHandler, (uint8_t)1, ADDR_GOAL_VELOCITY, (uint32_t)lin_vel_step, &dxl_error)
+
+    dxl_comm_result = packetHandler->write4ByteTxRx(
+	portHandler, DXL2_ID, ADDR_GOAL_VELOCITY, (uint32_t)lin_vel_step, &dxl_error);  // portHandler, (uint8_t)2, ADDR_GOAL_VELOCITY, (uint32_t)lin_vel_step, &dxl_error)
+	
+    dxl_comm_result = packetHandler->write4ByteTxRx(
+	portHandler, DXL3_ID, ADDR_GOAL_VELOCITY, (uint32_t)ang_vel_step, &dxl_error);  // portHandler, (uint8_t)3, ADDR_GOAL_VELOCITY, (uint32_t)ang_vel_step, &dxl_error)
+
+    dxl_comm_result = packetHandler->write4ByteTxRx(
+	portHandler, DXL4_ID, ADDR_GOAL_VELOCITY, (uint32_t)ang_vel_step, &dxl_error);  // portHandler, (uint8_t)4, ADDR_GOAL_VELOCITY, (uint32_t)ang_vel_step, &dxl_error)
+
+    ros::spinOnce();
+    loop_rate.sleep();
   }
   
-
   portHandler->closePort();
 
   return 0;

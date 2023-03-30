@@ -321,7 +321,6 @@ void DynamixelController::initPublisher()
 {
   dynamixel_state_list_pub_ = priv_node_handle_.advertise<dynamixel_workbench_msgs::DynamixelStateList>("dynamixel_state", 100);
   if (is_joint_state_topic_) joint_states_pub_ = priv_node_handle_.advertise<sensor_msgs::JointState>("joint_states", 100);
-  //joint_states_pub_ = priv_node_handle_.advertise<sensor_msgs::JointState>("joint_states", 100);
 }
 
 void DynamixelController::initSubscriber()
@@ -569,18 +568,8 @@ void DynamixelController::commandVelocityCallback(const geometry_msgs::Twist::Co
     else if (wheel_velocity[RIGHT] < 0.0f)  dynamixel_velocity[RIGHT] = ((-1.0f) * wheel_velocity[RIGHT] * velocity_constant_value) + 1023;
     else if (wheel_velocity[RIGHT] > 0.0f)  dynamixel_velocity[RIGHT] = (wheel_velocity[RIGHT] * velocity_constant_value);
   }
-  //dynamixel_velocity[2]  = wheel_velocity[LEFT] * velocity_constant_value;
-  //dynamixel_velocity[3] = wheel_velocity[RIGHT] * velocity_constant_value;
-  dynamixel_velocity[0]  = robot_lin_vel* velocity_constant_value;
-  dynamixel_velocity[1] = robot_lin_vel* velocity_constant_value;
-  dynamixel_velocity[2]  = robot_ang_vel* (velocity_constant_value/4);
-  dynamixel_velocity[3] = robot_ang_vel* (velocity_constant_value/4);
-      
+
   result = dxl_wb_->syncWrite(SYNC_WRITE_HANDLER_FOR_GOAL_VELOCITY, id_array, dynamixel_.size(), dynamixel_velocity, 1, &log);
-
-  // dynamixel_velocity[LEFT] = dynamixel_velocity[0]
-  // dynamixel_velocity[RIGHT] = dynamixel_velocity[1]
-
   if (result == false)
   {
     ROS_ERROR("%s", log);
@@ -778,8 +767,8 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "dynamixel_workbench_controllers");
   ros::NodeHandle node_handle("");
 
-  std::string port_name = "/dev/ttyACM0";
-  uint32_t baud_rate = 1000000;
+  std::string port_name = "/dev/ttyUSB0";
+  uint32_t baud_rate = 57600;
 
   if (argc < 2)
   {

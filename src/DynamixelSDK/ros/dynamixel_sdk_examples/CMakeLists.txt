@@ -25,14 +25,17 @@ find_package(catkin REQUIRED
 add_message_files(
   FILES
     SetPosition.msg
+    SetVelocity.msg
     SyncSetPosition.msg
     BulkSetItem.msg
+    Position.msg
 )
 
 ## Generate services in the 'srv' folder
 add_service_files(
   FILES
     GetPosition.srv
+    GetVelocity.srv
     SyncGetPosition.srv
     BulkGetItem.srv
 )
@@ -66,6 +69,18 @@ include_directories(
 add_executable(read_write_node src/read_write_node.cpp)
 add_dependencies(read_write_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(read_write_node ${catkin_LIBRARIES})
+
+add_executable(read_write_node_position src/read_write_node_position.cpp)
+add_dependencies(read_write_node_position ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(read_write_node_position ${catkin_LIBRARIES})
+
+add_executable(read_write_node_velocity src/read_write_node_velocity.cpp)
+add_dependencies(read_write_node_velocity ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(read_write_node_velocity ${catkin_LIBRARIES})
+
+add_executable(read_write_node_keyboard src/read_write_node_keyboard.cpp)
+add_dependencies(read_write_node_keyboard ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(read_write_node_keyboard ${catkin_LIBRARIES})
 
 add_executable(sync_read_write_node src/sync_read_write_node.cpp)
 add_dependencies(sync_read_write_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})

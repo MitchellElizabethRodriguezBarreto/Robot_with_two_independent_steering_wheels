@@ -37,19 +37,15 @@
 #include <ros/ros.h>
 
 #include "std_msgs/String.h"
-#include "dynamixel_sdk_examples/GetVelocity.h"
-#include "dynamixel_sdk_examples/SetVelocity.h"
+#include "dynamixel_sdk_examples/GetPosition.h"
 #include "dynamixel_sdk_examples/SetPosition.h"
-#include "dynamixel_sdk_examples/Position.h"
 #include "dynamixel_sdk/dynamixel_sdk.h"
 
 using namespace dynamixel;
 
 // Control table address
 #define ADDR_TORQUE_ENABLE    64
-#define ADDR_GOAL_VELOCITY    104
 #define ADDR_GOAL_POSITION    116
-#define ADDR_PRESENT_VELOCITY 128
 #define ADDR_PRESENT_POSITION 132
 #define ADDR_OPERATING_MODE   11
 
@@ -69,55 +65,30 @@ using namespace dynamixel;
 PortHandler * portHandler;
 PacketHandler * packetHandler;
 
+// Get current position with service
 
-
-ros::Publisher get_position_pub;
-
-// Get current velocity with service
-
-bool getPresentVelocityCallback(
-  dynamixel_sdk_examples::GetVelocity::Request & req,
-  dynamixel_sdk_examples::GetVelocity::Response & res)
+bool getPresentPositionCallback(
+  dynamixel_sdk_examples::GetPosition::Request & req,
+  dynamixel_sdk_examples::GetPosition::Response & res)
 {
   uint8_t dxl_error = 0;
   int dxl_comm_result = COMM_TX_FAIL;
 
   // Position Value of X series is 4 byte data. For AX & MX(1.0) use 2 byte data(int16_t) for the Position Value.
-  int32_t velocity = 0;
+  int32_t position = 0;
 
-  // Read Present Velocity (length : 4 bytes) and Convert uint32 -> int32
+  // Read Present Position (length : 4 bytes) and Convert uint32 -> int32
   // When reading 2 byte data from AX / MX(1.0), use read2ByteTxRx() instead.
   dxl_comm_result = packetHandler->read4ByteTxRx(
-    portHandler, (uint8_t)req.id, ADDR_PRESENT_VELOCITY, (uint32_t *)&velocity, &dxl_error);
+    portHandler, (uint8_t)req.id, ADDR_PRESENT_POSITION, (uint32_t *)&position, &dxl_error);
   if (dxl_comm_result == COMM_SUCCESS) {
-    ROS_INFO("getVelocity : [ID:%d] -> [VELOCITY:%d]", req.id, velocity);
-    res.velocity = velocity;
+    ROS_INFO("getPosition : [ID:%d] -> [POSITION:%d]", req.id, position);
+    res.position = position;
     return true;
   } else {
-    ROS_INFO("Failed to get velocity! Result: %d", dxl_comm_result);
+    ROS_INFO("Failed to get position! Result: %d", dxl_comm_result);
     return false;
   }
-}
-
-// Set velocity
-
-void setVelocityCallback(const dynamixel_sdk_examples::SetVelocity::ConstPtr & msg)
-{
-  uint8_t dxl_error = 0;
-  int dxl_comm_result = COMM_TX_FAIL;
-
-  // Position Value of X series is 4 byte data. For AX & MX(1.0) use 2 byte data(uint16_t) for the Position Value.
-  uint32_t velocity = (unsigned int)msg->velocity; // Convert int32 -> uint32
- 
-  // Write Goal Velocity (length : 4 bytes)
-  // When writing 2 byte data to AX / MX(1.0), use write2ByteTxRx() instead.
-  dxl_comm_result = packetHandler->write4ByteTxRx(
-    portHandler, (uint8_t)msg->id, ADDR_GOAL_VELOCITY, velocity, &dxl_error);
-  if (dxl_comm_result == COMM_SUCCESS) {
-    ROS_INFO("setVelocity : [ID:%d] [VELOCITY:%d]", msg->id, msg->velocity);
-  } else {
-    ROS_ERROR("Failed to set velocity! Result: %d", dxl_comm_result);
-  } 
 }
 
 // Set position
@@ -141,67 +112,8 @@ void setPositionCallback(const dynamixel_sdk_examples::SetPosition::ConstPtr & m
   }
 }
 
-// Get position in a topic
-
-void timer_callback(const ros::TimerEvent&)
-{  
-  uint8_t dxl_error = 0;
-  int dxl_comm_result = COMM_TX_FAIL;
-  
-  int32_t position1 = 0;
-  int32_t position2 = 0;
-  int32_t position3 = 0;
-  int32_t position4 = 0;
-  
-  dynamixel_sdk_examples::Position pos_motors;
-  pos_motors.id = {0, 0, 0, 0};
-  pos_motors.position = {0, 0, 0, 0};
-
-  // Read Present Position (length : 4 bytes) and Convert uint32 -> int32
-  // When reading 2 byte data from AX / MX(1.0), use read2ByteTxRx() instead.
-  dxl_comm_result = packetHandler->read4ByteTxRx(
-    portHandler, 1, ADDR_PRESENT_POSITION, (uint32_t *)&position1, &dxl_error);   // portHandler, DXL1_ID, ADDR_PRESENT_POSITION, (uint32_t *)&position1, &dxl_error);   
-  if (dxl_comm_result == COMM_SUCCESS) { 
-    pos_motors.id[0] = 1;   
-    pos_motors.position[0] = position1;
-  } else {
-    ROS_INFO("Failed to get position! Result: %d", dxl_comm_result);
-  }
-  
-  dxl_comm_result = packetHandler->read4ByteTxRx(
-    portHandler, 2, ADDR_PRESENT_POSITION, (uint32_t *)&position2, &dxl_error);   // portHandler, DXL2_ID, ADDR_PRESENT_POSITION, (uint32_t *)&position2, &dxl_error);  
-  if (dxl_comm_result == COMM_SUCCESS) { 
-    pos_motors.id[1] = 2;   
-    pos_motors.position[1] = position2;
-  } else {
-    ROS_INFO("Failed to get position! Result: %d", dxl_comm_result);
-  }
-  
-  dxl_comm_result = packetHandler->read4ByteTxRx(
-    portHandler, 3, ADDR_PRESENT_POSITION, (uint32_t *)&position3, &dxl_error);   // portHandler, DXL3_ID, ADDR_PRESENT_POSITION, (uint32_t *)&position3, &dxl_error);  
-  if (dxl_comm_result == COMM_SUCCESS) { 
-    pos_motors.id[2] = 3;   
-    pos_motors.position[2] = position3;
-  } else {
-    ROS_INFO("Failed to get position! Result: %d", dxl_comm_result);
-  }
-  
-  dxl_comm_result = packetHandler->read4ByteTxRx(
-    portHandler, 4, ADDR_PRESENT_POSITION, (uint32_t *)&position4, &dxl_error);   // portHandler, DXL4_ID, ADDR_PRESENT_POSITION, (uint32_t *)&position4, &dxl_error);  
-  if (dxl_comm_result == COMM_SUCCESS) { 
-    pos_motors.id[3] = 4;   
-    pos_motors.position[3] = position4;
-  } else {
-    ROS_INFO("Failed to get position! Result: %d", dxl_comm_result);
-  }
-  
-  get_position_pub.publish(pos_motors);
-}
-
 int main(int argc, char ** argv)
 {
-  // Initialization for use of the motors
-  
   uint8_t dxl_error = 0;
   int dxl_comm_result = COMM_TX_FAIL;
 
@@ -248,17 +160,11 @@ int main(int argc, char ** argv)
     return -1;
   }
   
-  // Start with velocity 15, motor ID 1
-  
-  //dxl_comm_result = packetHandler->write4ByteTxRx(
-  //  portHandler, 1, ADDR_GOAL_VELOCITY, (uint32_t)15, &dxl_error);
-
-  
   // Operating Mode 
   // 1: Velocity 
   // 3: Position   
   
-  // Try to change the operating mode by write1ByteTxRx  
+  // Try to change the operating mode by write1ByteTxRx 
   
   dxl_comm_result = packetHandler->write1ByteTxRx(
     portHandler, DXL1_ID, ADDR_OPERATING_MODE, 3, &dxl_error);
@@ -269,13 +175,13 @@ int main(int argc, char ** argv)
   else{
     int8_t op_mode_result = 0;
     packetHandler->read1ByteTxRx(portHandler, DXL1_ID, ADDR_OPERATING_MODE, (uint8_t *)&op_mode_result, &dxl_error);
-    ROS_INFO("Operating mode for Dynamixel ID %d: %d", DXL1_ID, op_mode_result);
+    ROS_INFO("Operating mode puntero for Dynamixel ID %d: %d", DXL1_ID, op_mode_result);
   }
-  
-  // Try to change the operating mode by write2ByteTxRx
 
+  // Try to change the operating mode by write2ByteTxRx
+  
   dxl_comm_result = packetHandler->write2ByteTxRx(
-    portHandler, DXL2_ID, ADDR_OPERATING_MODE, 1, &dxl_error);
+    portHandler, DXL2_ID, ADDR_OPERATING_MODE, 3, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {    
     ROS_ERROR("Failed to operating mode for Dynamixel ID %d", DXL2_ID);
     return -1;
@@ -289,7 +195,7 @@ int main(int argc, char ** argv)
   // Try to change the operating mode by write1ByteTxRx
   
   dxl_comm_result = packetHandler->write1ByteTxRx(
-    portHandler, DXL3_ID, ADDR_OPERATING_MODE, 1, &dxl_error);
+    portHandler, DXL3_ID, ADDR_OPERATING_MODE, 3, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
     ROS_ERROR("Failed to operating mode for Dynamixel ID %d", DXL3_ID);    
   }
@@ -299,10 +205,10 @@ int main(int argc, char ** argv)
     ROS_INFO("Operating mode for Dynamixel ID %d: %d", DXL3_ID, op_mode_result);
   }   
 
-  // Try to change the operating mode by writeTxRx(port, id, address, 1, data_write, error);
-
+  // Try to change the operating mode by writeTxRx(port, id, address, 3, data_write, error);
+  
   int8_t op_mode_config1 = 1;
-  dxl_comm_result = packetHandler->writeTxRx(portHandler, DXL4_ID, ADDR_OPERATING_MODE, 1, (uint8_t *)&op_mode_config1, &dxl_error);
+  dxl_comm_result = packetHandler->writeTxRx(portHandler, DXL4_ID, ADDR_OPERATING_MODE, 3, (uint8_t *)&op_mode_config1, &dxl_error);
   if (dxl_comm_result != COMM_SUCCESS) {
     ROS_ERROR("Failed to operating mode for Dynamixel ID %d", DXL4_ID);
     return -1;
@@ -315,16 +221,10 @@ int main(int argc, char ** argv)
   
   // Initialize node, service, subscribers and publishers
   
-  ros::init(argc, argv, "read_write_node");
+  ros::init(argc, argv, "read_write_node_position");
   ros::NodeHandle nh;
-  
-  ros::ServiceServer get_velocity_srv = nh.advertiseService("/get_velocity", getPresentVelocityCallback);
-  ros::Subscriber set_velocity_sub = nh.subscribe("/set_velocity", 10, setVelocityCallback);
+  ros::ServiceServer get_position_srv = nh.advertiseService("/get_position", getPresentPositionCallback);
   ros::Subscriber set_position_sub = nh.subscribe("/set_position", 10, setPositionCallback);
-  
-  ros::Timer timer = nh.createTimer(ros::Duration(0.1), timer_callback);
-  get_position_pub = nh.advertise<dynamixel_sdk_examples::Position>("/position_encoder", 10);
-  
   
   while (ros::ok())
   {
